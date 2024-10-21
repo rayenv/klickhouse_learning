@@ -1,0 +1,116 @@
+# cоздание таблицы
+CREATE DATABASE IF NOT EXISTS restaurant_menu;
+USE restaurant_menu;
+
+# создание схемы
+CREATE TABLE IF NOT EXISTS menu (
+    id UUID DEFAULT generateUUIDv4() PRIMARY KEY,
+    name String,
+    description String,
+    price Decimal(10, 2),
+    category LowCardinality(String),
+    is_available Nullable(UInt8) DEFAULT 1
+) ENGINE = MergeTree()
+ORDER BY id;
+
+# Добавление комментариев к столбцам
+ALTER TABLE menu COMMENT COLUMN id 'Уникальный идентификатор блюда';
+ALTER TABLE menu COMMENT COLUMN name 'Название блюда';
+ALTER TABLE menu COMMENT COLUMN description 'Описание блюда';
+ALTER TABLE menu COMMENT COLUMN price 'Цена блюда';
+ALTER TABLE menu COMMENT COLUMN category 'Категория блюда (например, "закуски", "супы", "десерты")';
+ALTER TABLE menu COMMENT COLUMN is_available 'Доступность блюда (1 - доступно, 0 - недоступно, NULL - не указано)';
+
+# Заполнение
+INSERT INTO menu (name, description, price, category, is_available) VALUES
+('Цезарь', 'Салат с курицей, сыром пармезан и гренками', 350.00, 'закуски', 1),
+('Борщ', 'Традиционный украинский борщ с говядиной', 250.00, 'супы', 1),
+('Тирамису', 'Классический итальянский десерт', 200.00, 'десерты', 0),
+('Чай', 'Черный чай индийский', 50.00, 'напитки', NULL);
+
+# дооолго втыкал что-же такое CRUD... и загуглил, это прекрасно - create, read, update, delete) а потом сгенерил пару картинок с промтом CRUD (это чисто чтобы отвлечься)
+C 
+INSERT INTO menu (name, description, price, category, is_available) VALUES
+('Пицца Маргарита', 'Классическая итальянская пицца с томатами и сыром моцарелла', 450.00, 'пицца', 1);
+
+R
+# Выборка записей по категории
+SELECT * FROM menu WHERE category = 'закуски';
+
+U 
+# Обновление цены блюда "Цезарь"
+ALTER TABLE menu UPDATE price = 370.00 WHERE name = 'Цезарь';
+
+D 
+# Удаление блюда "Тирамису"
+ALTER TABLE menu DELETE WHERE name = 'Тирамису';
+
+# добавление и удаление полей
+#Добавление поля "вес" (в граммах)
+ALTER TABLE menu ADD COLUMN weight UInt16 COMMENT 'Вес блюда в граммах';
+
+#Добавление поля "аллергены" (список аллергенов через запятую)
+ALTER TABLE menu ADD COLUMN allergens Nullable(String) COMMENT 'Список аллергенов через запятую';
+
+############### работа с датасетом
+
+CREATE TABLE dish
+(
+    id UInt32,
+    name String,
+    description String,
+    menus_appeared UInt32,
+    times_appeared Int32,
+    first_appeared UInt16,
+    last_appeared UInt16,
+    lowest_price Decimal64(3),
+    highest_price Decimal64(3)
+) ENGINE = MergeTree ORDER BY id;
+
+CREATE TABLE menu
+(
+    id UInt32,
+    name String,
+    sponsor String,
+    event String,
+    venue String,
+    place String,
+    physical_description String,
+    occasion String,
+    notes String,
+    call_number String,
+    keywords String,
+    language String,
+    date String,
+    location String,
+    location_type String,
+    currency String,
+    currency_symbol String,
+    status String,
+    page_count UInt16,
+    dish_count UInt16
+) ENGINE = MergeTree ORDER BY id;
+
+CREATE TABLE menu_page
+(
+    id UInt32,
+    menu_id UInt32,
+    page_number UInt16,
+    image_id String,
+    full_height UInt16,
+    full_width UInt16,
+    uuid UUID
+) ENGINE = MergeTree ORDER BY id;
+
+CREATE TABLE menu_item
+(
+    id UInt32,
+    menu_page_id UInt32,
+    price Decimal64(3),
+    high_price Decimal64(3),
+    dish_id UInt32,
+    created_at DateTime,
+    updated_at DateTime,
+    xpos Float64,
+    ypos Float64
+) ENGINE = MergeTree ORDER BY id;
