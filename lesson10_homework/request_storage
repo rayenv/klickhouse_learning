@@ -1,0 +1,47 @@
+Найти жанры для каждого фильма
+
+SELECT m.id, m.name, g.genre
+FROM imdb.movies m
+INNER JOIN imdb.genres g ON m.id = g.movie_id
+ORDER BY m.id;
+
+Запросить все фильмы, у которых нет жанра
+
+SELECT m.id, m.name
+FROM imdb.movies m
+LEFT JOIN imdb.genres g ON m.id = g.movie_id
+WHERE g.movie_id IS NULL;
+
+Объединить каждую строку из таблицы “Фильмы” с каждой строкой из таблицы “Жанры”
+
+SELECT m.id, m.name, g.genre
+FROM imdb.movies m
+CROSS JOIN imdb.genres g;
+
+
+Найти жанры для каждого фильма, НЕ используя INNER JOIN
+
+SELECT m.id, m.name, g.genre
+FROM imdb.movies m, imdb.genres g
+WHERE m.id = g.movie_id
+ORDER BY m.id
+
+
+Найти всех актеров и актрис, снявшихся в фильме в 2023 году
+
+SELECT a.id, a.first_name, a.last_name, m.name
+FROM imdb.actors a
+INNER JOIN imdb.roles r ON a.id = r.actor_id
+INNER JOIN imdb.movies m ON r.movie_id = m.id
+WHERE m.year = 2023;
+
+
+Запросить все фильмы, у которых нет жанра, через ANTI JOIN
+
+SELECT m.id, m.name
+FROM imdb.movies m
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM imdb.genres g
+    WHERE m.id = g.movie_id
+);
