@@ -1,0 +1,51 @@
+CREATE TABLE sales (
+    id UInt32,
+    product_id UInt32,
+    quantity UInt32,
+    price Float32,
+    sale_date DateTime
+) ENGINE = MergeTree()
+ORDER BY id;
+
+INSERT INTO sales (id, product_id, quantity, price, sale_date) VALUES
+(1, 101, 5, 10.5, '2023-10-01 12:00:00'),
+(2, 102, 3, 15.0, '2023-10-02 14:00:00'),
+(3, 101, 2, 10.5, '2023-10-03 16:00:00'),
+(4, 103, 1, 20.0, '2023-10-04 18:00:00'),
+(5, 102, 4, 15.0, '2023-10-05 20:00:00');
+
+ALTER TABLE sales ADD PROJECTION sales_projection (
+    SELECT
+        product_id,
+        sum(quantity) AS total_quantity,
+        sum(quantity * price) AS total_sales
+    GROUP BY product_id
+);
+
+ALTER TABLE sales MATERIALIZE PROJECTION sales_projection;
+
+CREATE MATERIALIZED VIEW sales_mv
+ENGINE = SummingMergeTree()
+ORDER BY product_id
+AS
+SELECT
+    product_id,
+    sum(quantity) AS total_quantity,
+    sum(quantity * price) AS total_sales
+FROM sales
+GROUP BY product_id;
+
+SELECT * FROM sales_projection;
+
+SELECT * FROM sales_mv;
+
+SELECT
+    product_id,
+    sum(quantity) AS total_quantity,
+    sum(quantity * price) AS total_sales
+FROM sales
+GROUP BY product_id;
+
+
+ clickhouse-client --time -q "SELECT product_id, sum(quantity) AS total_quantity, sum(quantity * price) AS total_sales
+FROM sales GROUP BY product_id;"
