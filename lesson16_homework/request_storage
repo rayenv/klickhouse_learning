@@ -1,0 +1,26 @@
+CREATE TABLE user_activity (
+    user_id UInt32,
+    activity_type String,
+    activity_date DateTime
+) ENGINE = MergeTree
+PARTITION BY toYYYYMM(activity_date)
+ORDER BY user_id;
+
+INSERT INTO user_activity (user_id, activity_type, activity_date) VALUES
+(1, 'login', '2023-10-01 10:00:00'),
+(2, 'logout', '2023-10-01 11:00:00'),
+(3, 'purchase', '2023-10-02 12:00:00'),
+(1, 'logout', '2023-10-03 13:00:00'),
+(2, 'login', '2023-11-01 14:00:00');
+
+ALTER TABLE user_activity UPDATE activity_type = 'logout' WHERE user_id = 1 AND activity_type = 'login';
+
+SELECT * FROM user_activity WHERE user_id = 1;
+
+SELECT mutation_id, command, block_numbers.partition_id, parts_to_do, is_done
+FROM system.mutations
+WHERE table = 'user_activity';
+
+ALTER TABLE user_activity DROP PARTITION 202310;
+
+SELECT * FROM user_activity;
