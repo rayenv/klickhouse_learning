@@ -1,0 +1,14 @@
+CREATE USER jhon IDENTIFIED WITH plaintext_password BY 'qwerty';
+CREATE ROLE devs;
+GRANT SELECT ON default.employees TO devs;
+GRANT devs TO jhon;
+SELECT name FROM system.users WHERE name = 'jhon';
+SELECT name FROM system.roles WHERE name = 'devs';
+
+SELECT user_name, database, table, access_type 
+FROM system.grants 
+WHERE user_name = 'devs' AND table = 'employees';
+
+SELECT user_name, role_name 
+FROM system.role_users 
+WHERE user_name = 'jhon';
