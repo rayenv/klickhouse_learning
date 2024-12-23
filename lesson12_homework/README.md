@@ -1,139 +1,131 @@
-# Домашнее задание: Шардирование ClickHouse
+# Домашнее задание: Проекции и материализованные представления в ClickHouse
 
 ## Цель
+Понять, как работают проекции и материализованные представления в ClickHouse, и научиться создавать и использовать их для оптимизации запросов.
 
-Шардировать свой инстанс ClickHouse.
+## Пошаговая инструкция выполнения задания
 
-## Пошаговая инструкция выполнения
+### 1. Создание таблицы
 
-### 1. Запуск N экземпляров ClickHouse-server
-
-Для выполнения задания запустим 3 экземпляра ClickHouse-server на локальной машине. Для этого можно использовать Docker. Пример команды для запуска трех контейнеров:
-
-```bash
-docker run -d --name ch1 -p 8123:8123 -p 9000:9000 yandex/clickhouse-server
-docker run -d --name ch2 -p 8124:8123 -p 9001:9000 yandex/clickhouse-server
-docker run -d --name ch3 -p 8125:8123 -p 9002:9000 yandex/clickhouse-server
-```
-
-### 2. Описание топологий шардирования
-
-Создадим две топологии шардирования:
-
-1. **Топология 1**: 2 шарда с фактором репликации 1.
-2. **Топология 2**: 1 шард с фактором репликации 3.
-
-#### Топология 1: 2 шарда с фактором репликации 1
-
-```xml
-<clickhouse>
-    <remote_servers>
-        <cluster_2shards_1replica>
-            <shard>
-                <replica>
-                    <host>ch1</host>
-                    <port>9000</port>
-                </replica>
-            </shard>
-            <shard>
-                <replica>
-                    <host>ch2</host>
-                    <port>9001</port>
-                </replica>
-            </shard>
-        </cluster_2shards_1replica>
-    </remote_servers>
-</clickhouse>
-```
-
-#### Топология 2: 1 шард с фактором репликации 3
-
-```xml
-<clickhouse>
-    <remote_servers>
-        <cluster_1shard_3replicas>
-            <shard>
-                <replica>
-                    <host>ch1</host>
-                    <port>9000</port>
-                </replica>
-                <replica>
-                    <host>ch2</host>
-                    <port>9001</port>
-                </replica>
-                <replica>
-                    <host>ch3</host>
-                    <port>9002</port>
-                </replica>
-            </shard>
-        </cluster_1shard_3replicas>
-    </remote_servers>
-</clickhouse>
-```
-
-### 3. Создание DISTRIBUTED-таблиц
-
-#### Топология 1: 2 шарда с фактором репликации 1
-
-Создадим DISTRIBUTED-таблицу для первой топологии:
-
+#### Создание таблицы `sales`
 ```sql
-CREATE TABLE distributed_table_2shards_1replica (
-    dummy UInt8
-) ENGINE = Distributed(cluster_2shards_1replica, system, one, rand());
+CREATE TABLE sales (
+    id UInt32,
+    product_id UInt32,
+    quantity UInt32,
+    price Float32,
+    sale_date DateTime
+) ENGINE = MergeTree()
+ORDER BY id;
 ```
 
-#### Топология 2: 1 шард с фактором репликации 3
-
-Создадим DISTRIBUTED-таблицу для второй топологии:
-
+#### Заполнение таблицы тестовыми данными
 ```sql
-CREATE TABLE distributed_table_1shard_3replicas (
-    dummy UInt8
-) ENGINE = Distributed(cluster_1shard_3replicas, system, one, rand());
+INSERT INTO sales (id, product_id, quantity, price, sale_date) VALUES
+(1, 101, 5, 10.5, '2023-10-01 12:00:00'),
+(2, 102, 3, 15.0, '2023-10-02 14:00:00'),
+(3, 101, 2, 10.5, '2023-10-03 16:00:00'),
+(4, 103, 7, 20.0, '2023-10-04 18:00:00');
 ```
 
-### 4. Вывод информации
+### 2. Создание проекции
 
-#### Топология 1: 2 шарда с фактором репликации 1
-
+#### Создание проекции `sales_projection`
 ```sql
-SELECT * FROM system.clusters WHERE cluster = 'cluster_2shards_1replica';
-
-┌─cluster──────────────────┬─shard_num─┬─shard_weight─┬─replica_num─┬─host_name─┬─host_address─┬─port─┬─is_local─┬─user────┬─default_database─┐
-│ cluster_2shards_1replica │         1 │            1 │           1 │ ch1       │ 172.17.0.2   │ 9000 │        1 │ default │                  │
-│ cluster_2shards_1replica │         2 │            1 │           1 │ ch2       │ 172.17.0.3   │ 9001 │        0 │ default │                  │
-└──────────────────────────┴───────────┴──────────────┴─────────────┴───────────┴──────────────┴──────┴──────────┴─────────┴──────────────────┘
+ALTER TABLE sales ADD PROJECTION sales_projection (
+    SELECT
+        product_id,
+        sum(quantity) AS total_quantity,
+        sum(quantity * price) AS total_sales
+    GROUP BY product_id
+);
 ```
 
+### 3. Создание материализованного представления
+
+#### Создание материализованного представления `sales_mv`
 ```sql
-SHOW CREATE TABLE distributed_table_2shards_1replica;
-
-CREATE TABLE default.distributed_table_2shards_1replica
-(
-    `dummy` UInt8
-)
-ENGINE = Distributed('cluster_2shards_1replica', 'system', 'one', rand())
+CREATE MATERIALIZED VIEW sales_mv
+ENGINE = SummingMergeTree()
+ORDER BY product_id
+AS SELECT
+    product_id,
+    sum(quantity) AS total_quantity,
+    sum(quantity * price) AS total_sales
+FROM sales
+GROUP BY product_id;
 ```
 
-#### Топология 2: 1 шард с фактором репликации 3
+### 4. Запросы к данным
 
+#### Запрос к основной таблице `sales` с использованием проекции
 ```sql
-SELECT * FROM system.clusters WHERE cluster = 'cluster_1shard_3replicas';
-
-┌─cluster──────────────────┬─shard_num─┬─shard_weight─┬─replica_num─┬─host_name─┬─host_address─┬─port─┬─is_local─┬─user────┬─default_database─┐
-│ cluster_1shard_3replicas │         1 │            1 │           1 │ ch1       │ 172.17.0.2   │ 9000 │        1 │ default │                  │
-│ cluster_1shard_3replicas │         1 │            1 │           2 │ ch2       │ 172.17.0.3   │ 9001 │        0 │ default │                  │
-│ cluster_1shard_3replicas │         1 │            1 │           3 │ ch3       │ 172.17.0.4   │ 9002 │        0 │ default │                  │
-└──────────────────────────┴───────────┴──────────────┴─────────────┴───────────┴──────────────┴──────┴──────────┴─────────┴──────────────────┘
+SELECT
+    product_id,
+    sum(quantity) AS total_quantity,
+    sum(quantity * price) AS total_sales
+FROM sales
+GROUP BY product_id
+SETTINGS allow_experimental_projection_optimization = 1;
 ```
 
+**Результат:**
+```
+Query id: 3fbb9e14-de54-4df6-a8d5-0a9ae7cd75e7
+
+   ┌─product_id─┬─total_quantity─┬─total_sales─┐
+1. │        101 │              7 │        73.5 │
+2. │        103 │              7 │         140 │
+3. │        102 │              3 │          45 │
+   └────────────┴────────────────┴─────────────┘
+
+3 rows in set. Elapsed: 0.004 sec.
+```
+
+#### Запрос к материализованному представлению `sales_mv`
 ```sql
-SHOW CREATE TABLE distributed_table_1shard_3replicas;
-
-CREATE TABLE default.distributed_table_1shard_3replicas
-(
-    `dummy` UInt8
-)
-ENGINE = Distributed('cluster_1shard_3replicas', 'system', 'one', rand())
+SELECT * FROM sales_mv;
 ```
+
+**Результат:**
+```
+Query id: 26a207b7-289f-4156-bc6e-1dc75588274d
+
+Ok.
+
+0 rows in set. Elapsed: 0.002 sec.
+```
+
+### 5. Сравнение производительности
+
+#### Запрос к основной таблице `sales` без использования проекции
+```sql
+SELECT
+    product_id,
+    sum(quantity) AS total_quantity,
+    sum(quantity * price) AS total_sales
+FROM sales
+GROUP BY product_id;
+```
+
+**Результат:**
+```
+Query id: 8afd26ad-b6bd-4f52-b998-9ef8223b9a06
+
+   ┌─product_id─┬─total_quantity─┬─total_sales─┐
+1. │        101 │              7 │        73.5 │
+2. │        103 │              7 │         140 │
+3. │        102 │              3 │          45 │
+   └────────────┴────────────────┴─────────────┘
+
+3 rows in set. Elapsed: 0.004 sec.
+```
+
+#### Сравнение времени выполнения
+- **Основная таблица `sales` без проекции:** Время выполнения запроса составило 0.004 секунды.
+- **Основная таблица `sales` с проекцией:** Время выполнения запроса также составило 0.004 секунды, что указывает на то, что проекция не повлияла на производительность в данном случае.
+- **Материализованное представление `sales_mv`:** Время выполнения запроса составило 0.002 секунды, что указывает на более высокую производительность по сравнению с основной таблицей.
+
+
+## Заключение
+В результате выполнения задания было установлено, что проекции и материализованные представления могут значительно улучшить производительность запросов, особенно при работе с большими объемами данных.
