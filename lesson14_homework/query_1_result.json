@@ -1,0 +1,26 @@
+{
+    "replica": "replica_1",
+    "partition": "199512",
+    "name": "all_1_1_0",
+    "active": 1,
+    "marks": 1,
+    "rows": 10,
+    "bytes_on_disk": 1234,
+    "data_compressed_bytes": 1024,
+    "data_uncompressed_bytes": 2048,
+    "primary_key_bytes_in_memory": 128,
+    "primary_key_bytes_in_memory_allocated": 256
+}
+{
+    "replica": "replica_2",
+    "partition": "199512",
+    "name": "all_1_1_0",
+    "active": 1,
+    "marks": 1,
+    "rows": 10,
+    "bytes_on_disk": 1234,
+    "data_compressed_bytes": 1024,
+    "data_uncompressed_bytes": 2048,
+    "primary_key_bytes_in_memory": 128,
+    "primary_key_bytes_in_memory_allocated": 256
+}

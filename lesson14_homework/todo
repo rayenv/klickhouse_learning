@@ -20,3 +20,4 @@ FORMAT JSONEachRow;
 SELECT * FROM system.replicas FORMAT JSONEachRow;
 5) Добавить/выбрать колонку с типом Date в таблице, добавить TTL на таблицу «хранить последние 7 дней». Предоставить результат запроса «SHOW CREATE TABLE таблица» на проверку.
 
+

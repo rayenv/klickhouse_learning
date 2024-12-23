@@ -1,51 +1,202 @@
-CREATE TABLE sales (
-    id UInt32,
-    product_id UInt32,
-    quantity UInt32,
-    price Float32,
-    sale_date DateTime
-) ENGINE = MergeTree()
-ORDER BY id;
+CREATE TABLE uk_price_paid (
+    price UInt32,
+    date Date,
+    postcode1 LowCardinality(String),
+    postcode2 LowCardinality(String),
+    type Enum8('terraced' = 1, 'semi-detached' = 2, 'detached' = 3, 'flat' = 4, 'other' = 0),
+    is_new UInt8,
+    duration Enum8('freehold' = 1, 'leasehold' = 2, 'unknown' = 0),
+    addr1 String,
+    addr2 String,
+    street LowCardinality(String),
+    locality LowCardinality(String),
+    town LowCardinality(String),
+    district LowCardinality(String),
+    county LowCardinality(String)
+)
+ENGINE = MergeTree
+ORDER BY (postcode1, postcode2, addr1, addr2);
 
-INSERT INTO sales (id, product_id, quantity, price, sale_date) VALUES
-(1, 101, 5, 10.5, '2023-10-01 12:00:00'),
-(2, 102, 3, 15.0, '2023-10-02 14:00:00'),
-(3, 101, 2, 10.5, '2023-10-03 16:00:00'),
-(4, 103, 1, 20.0, '2023-10-04 18:00:00'),
-(5, 102, 4, 15.0, '2023-10-05 20:00:00');
-
-ALTER TABLE sales ADD PROJECTION sales_projection (
-    SELECT
-        product_id,
-        sum(quantity) AS total_quantity,
-        sum(quantity * price) AS total_sales
-    GROUP BY product_id
-);
-
-ALTER TABLE sales MATERIALIZE PROJECTION sales_projection;
-
-CREATE MATERIALIZED VIEW sales_mv
-ENGINE = SummingMergeTree()
-ORDER BY product_id
-AS
+INSERT INTO uk_price_paid
+WITH
+   splitByChar(' ', postcode) AS p
 SELECT
-    product_id,
-    sum(quantity) AS total_quantity,
-    sum(quantity * price) AS total_sales
-FROM sales
-GROUP BY product_id;
+    toUInt32(price_string) AS price,
+    parseDateTimeBestEffortUS(time) AS date,
+    p[1] AS postcode1,
+    p[2] AS postcode2,
+    transform(a, ['T', 'S', 'D', 'F', 'O'], ['terraced', 'semi-detached', 'detached', 'flat', 'other']) AS type,
+    b = 'Y' AS is_new,
+    transform(c, ['F', 'L', 'U'], ['freehold', 'leasehold', 'unknown']) AS duration,
+    addr1,
+    addr2,
+    street,
+    locality,
+    town,
+    district,
+    county
+FROM url(
+    'http://prod.publicdata.landregistry.gov.uk.s3-website-eu-west-1.amazonaws.com/pp-complete.csv',
+    'CSV',
+    'uuid_string String,
+    price_string String,
+    time String,
+    postcode String,
+    a String,
+    b String,
+    c String,
+    addr1 String,
+    addr2 String,
+    street String,
+    locality String,
+    town String,
+    district String,
+    county String,
+    d String,
+    e String'
+)
+LIMIT 10
+SETTINGS max_http_get_redirects=10;
 
-SELECT * FROM sales_projection;
+SELECT *
+FROM uk_price_paid;
 
-SELECT * FROM sales_mv;
+CREATE TABLE uk_price_paid_repl (
+    price UInt32,
+    date Date,
+    postcode1 LowCardinality(String),
+    postcode2 LowCardinality(String),
+    type Enum8('terraced' = 1, 'semi-detached' = 2, 'detached' = 3, 'flat' = 4, 'other' = 0),
+    is_new UInt8,
+    duration Enum8('freehold' = 1, 'leasehold' = 2, 'unknown' = 0),
+    addr1 String,
+    addr2 String,
+    street LowCardinality(String),
+    locality LowCardinality(String),
+    town LowCardinality(String),
+    district LowCardinality(String),
+    county LowCardinality(String)
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/uk_price_paid', '{replica}')
+ORDER BY (postcode1, postcode2, addr1, addr2);
+
+config.xml
+<yandex>
+    <macros>
+        <shard>01</shard>
+        <replica>replica_1</replica>
+    </macros>
+</yandex>
+
+<yandex>
+    <remote_servers>
+        <my_cluster>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>clickhouse-01</host>
+                    <port>9000</port>
+                    <user>default</user>
+                    <password>password</password>
+                </replica>
+                <replica>
+                    <host>clickhouse-02</host>
+                    <port>9000</port>
+                    <user>default</user>
+                    <password>password</password>
+                </replica>
+            </shard>
+            <shard>
+                <internal_replication>true</internal_replication>
+                <replica>
+                    <host>clickhouse-03</host>
+                    <port>9000</port>
+                    <user>default</user>
+                    <password>password</password>
+                </replica>
+                <replica>
+                    <host>clickhouse-04</host>
+                    <port>9000</port>
+                    <user>default</user>
+                    <password>password</password>
+                </replica>
+            </shard>
+        </my_cluster>
+    </remote_servers>
+
+    <macros>
+        <shard>01</shard>
+        <replica>replica_1</replica>
+    </macros>
+</yandex>
+
+CREATE TABLE uk_price_paid_repl_1 (
+    price UInt32,
+    date Date,
+    postcode1 LowCardinality(String),
+    postcode2 LowCardinality(String),
+    type Enum8('terraced' = 1, 'semi-detached' = 2, 'detached' = 3, 'flat' = 4, 'other' = 0),
+    is_new UInt8,
+    duration Enum8('freehold' = 1, 'leasehold' = 2, 'unknown' = 0),
+    addr1 String,
+    addr2 String,
+    street LowCardinality(String),
+    locality LowCardinality(String),
+    town LowCardinality(String),
+    district LowCardinality(String),
+    county LowCardinality(String)
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/uk_price_paid', 'replica_1')
+ORDER BY (postcode1, postcode2, addr1, addr2);
+
+CREATE TABLE uk_price_paid_repl_2 (
+    price UInt32,
+    date Date,
+    postcode1 LowCardinality(String),
+    postcode2 LowCardinality(String),
+    type Enum8('terraced' = 1, 'semi-detached' = 2, 'detached' = 3, 'flat' = 4, 'other' = 0),
+    is_new UInt8,
+    duration Enum8('freehold' = 1, 'leasehold' = 2, 'unknown' = 0),
+    addr1 String,
+    addr2 String,
+    street LowCardinality(String),
+    locality LowCardinality(String),
+    town LowCardinality(String),
+    district LowCardinality(String),
+    county LowCardinality(String)
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/uk_price_paid', 'replica_2')
+ORDER BY (postcode1, postcode2, addr1, addr2);
 
 SELECT
-    product_id,
-    sum(quantity) AS total_quantity,
-    sum(quantity * price) AS total_sales
-FROM sales
-GROUP BY product_id;
+    getMacro('replica') AS replica,
+    *
+FROM remote('replica_1,replica_2', system.parts)
+FORMAT JSONEachRow;
 
+SELECT * FROM system.replicas FORMAT JSONEachRow;
 
- clickhouse-client --time -q "SELECT product_id, sum(quantity) AS total_quantity, sum(quantity * price) AS total_sales
-FROM sales GROUP BY product_id;"
+ALTER TABLE uk_price_paid_repl ADD COLUMN event_date Date DEFAULT date;
+
+ALTER TABLE uk_price_paid_repl MODIFY TTL event_date + INTERVAL 7 DAY;
+
+CREATE TABLE uk_price_paid_repl (
+    price UInt32,
+    date Date,
+    postcode1 LowCardinality(String),
+    postcode2 LowCardinality(String),
+    type Enum8('terraced' = 1, 'semi-detached' = 2, 'detached' = 3, 'flat' = 4, 'other' = 0),
+    is_new UInt8,
+    duration Enum8('freehold' = 1, 'leasehold' = 2, 'unknown' = 0),
+    addr1 String,
+    addr2 String,
+    street LowCardinality(String),
+    locality LowCardinality(String),
+    town LowCardinality(String),
+    district LowCardinality(String),
+    county LowCardinality(String),
+    event_date Date DEFAULT date
+)
+ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/uk_price_paid', '{replica}')
+ORDER BY (postcode1, postcode2, addr1, addr2)
+TTL event_date + INTERVAL 7 DAY;
