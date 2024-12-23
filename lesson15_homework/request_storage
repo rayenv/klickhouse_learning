@@ -1,0 +1,64 @@
+docker run -d --name ch1 -p 8123:8123 -p 9000:9000 yandex/clickhouse-server
+docker run -d --name ch2 -p 8124:8123 -p 9001:9000 yandex/clickhouse-server
+docker run -d --name ch3 -p 8125:8123 -p 9002:9000 yandex/clickhouse-server
+
+xml
+<clickhouse>
+    <remote_servers>
+        <cluster_2shards_1replica>
+            <shard>
+                <replica>
+                    <host>ch1</host>
+                    <port>9000</port>
+                </replica>
+            </shard>
+            <shard>
+                <replica>
+                    <host>ch2</host>
+                    <port>9001</port>
+                </replica>
+            </shard>
+        </cluster_2shards_1replica>
+    </remote_servers>
+</clickhouse>
+```
+
+```xml
+<clickhouse>
+    <remote_servers>
+        <cluster_1shard_3replicas>
+            <shard>
+                <replica>
+                    <host>ch1</host>
+                    <port>9000</port>
+                </replica>
+                <replica>
+                    <host>ch2</host>
+                    <port>9001</port>
+                </replica>
+                <replica>
+                    <host>ch3</host>
+                    <port>9002</port>
+                </replica>
+            </shard>
+        </cluster_1shard_3replicas>
+    </remote_servers>
+</clickhouse>
+```
+
+CREATE TABLE distributed_table_2shards_1replica (
+    dummy UInt8
+) ENGINE = Distributed(cluster_2shards_1replica, system, one, rand());
+
+
+CREATE TABLE distributed_table_1shard_3replicas (
+    dummy UInt8
+) ENGINE = Distributed(cluster_1shard_3replicas, system, one, rand());
+
+SELECT * FROM system.clusters WHERE cluster = 'cluster_2shards_1replica';
+
+SHOW CREATE TABLE distributed_table_2shards_1replica;
+
+SELECT * FROM system.clusters WHERE cluster = 'cluster_1shard_3replicas';
+
+SHOW CREATE TABLE distributed_table_1shard_3replicas;
