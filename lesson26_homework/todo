@@ -1,0 +1,13 @@
+Домашнее задание
+Варианты интеграции CH с PG
+
+Цель:
+Проработать варианты интеграции ClickHouse и PostgreSQL на базовом уровне
+
+
+Описание/Пошаговая инструкция выполнения домашнего задания:
+Инициализировать БД PostgreSQL любым способом. Пример - https://github.com/AlexeyFerum/teaching_time/wiki/Sbornaya-solyanka#postgres
+Загрузить тестовый датасет
+На стороне ClickHouse с помощью функции postgres запросить данные.
+На стороне ClickHouse создать таблицу для интеграции с движком Postgres для связи с таблицей из PostgreSQL
+На стороне ClickHouse создать БД для интеграции с движком Postgres для связи с БД из PostgreSQL

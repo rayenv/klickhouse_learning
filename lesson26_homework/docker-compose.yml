@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: postgres_container
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+      POSTGRES_DB: test_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+
+  clickhouse:
+    image: yandex/clickhouse-server:latest
+    container_name: clickhouse_container
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    depends_on:
+      - postgres
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ''
+    volumes:
+      - ./clickhouse_data:/var/lib/clickhouse
