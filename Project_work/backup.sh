@@ -24,7 +24,7 @@ print_header() {
 
 # Логирование
 LOG_FILE="backup_clickhouse.log"
-log_message () {
+log_message() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
 }
 
