@@ -25,7 +25,7 @@ print_header() {
 # Логирование
 LOG_FILE="backup_clickhouse.log"
 log_message() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
+    echo -e "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
 }
 
 # Начало отсчета времени выполнения
@@ -67,7 +67,7 @@ print_header "Анализ доступных баз данных"
 
 DATABASES_INFO=$(curl -sS $CURL_OPTS "$PROTOCOL://$HOST:$PORT/?query=SHOW+DATABASES")
 if [ $? -ne 0 ]; then
-    log_message echo -e "${RED}Не удалось получить список баз данных. Проверьте подключение. ${NC}"
+    log_message "${RED}Не удалось получить список баз данных. Проверьте подключение. ${NC}"
     exit 1
 fi
 
@@ -81,7 +81,7 @@ for DATABASE in $DATABASES_INFO; do
 done
 
 # Вывод информации о базах данных и таблицах
-log_message echo -e "${GREEN}Список доступных баз данных и таблиц: ${NC}"
+log_message "${GREEN}Список доступных баз данных и таблиц: ${NC}"
 for DATABASE in "${!DATABASE_TABLES[@]}"; do
     echo -e "${YELLOW}База данных: $DATABASE ${NC}"
     echo -e "Таблицы:"
@@ -92,7 +92,6 @@ done
 
 # Выбор баз данных для бэкапа
 while true; do
-    log_message 
     echo -e "${YELLOW}Введите названия баз данных для бэкапа через пробел: ${NC}"
     echo -e "${YELLOW}- или 'all' для бекапа всех пользовательских таблиц ${NC}"
     echo -e "${YELLOW}- или 'all+system' для включения в бекап системных таблиц: ${NC}"
@@ -124,7 +123,7 @@ while true; do
         done
 
         if [ ${#INVALID_DATABASES[@]} -ne 0 ]; then
-            log_message echo -e "${RED}Некорректные базы данных: ${INVALID_DATABASES[*]}. Пожалуйста, повторите выбор. ${NC}"
+            log_message "${RED}Некорректные базы данных: ${INVALID_DATABASES[*]}. Пожалуйста, повторите выбор. ${NC}"
         else
             break
         fi
@@ -134,14 +133,13 @@ done
 # Выбор таблиц для каждой базы данных
 declare -A SELECTED_TABLES
 for DATABASE in "${SELECTED_DATABASES[@]}"; do
-    log_message 
     echo -e "${YELLOW}Выберите таблицы для бэкапа в базе '$DATABASE': ${NC}"
     echo -e "${YELLOW}- или 'all' для бекапа всех таблиц ${NC}"
     echo -e "${YELLOW}- или '-' для отказа от бекапа таблиц этой базы: ${NC}"
     read -r TABLE_SELECTION
 
     if [[ "$TABLE_SELECTION" == "-" ]]; then
-        log_message echo -e "${YELLOW}Бэкап таблиц базы '$DATABASE' пропущен. ${NC}"
+        log_message  "${YELLOW}Бэкап таблиц базы '$DATABASE' пропущен. ${NC}"
         continue
     elif [[ "$TABLE_SELECTION" == "all" ]]; then
         SELECTED_TABLES["$DATABASE"]="${DATABASE_TABLES[$DATABASE]}"
@@ -158,7 +156,7 @@ for DATABASE in "${SELECTED_DATABASES[@]}"; do
         done
 
         if [ ${#INVALID_TABLES[@]} -ne 0 ]; then
-            log_message echo -e "${RED}Некорректные таблицы: ${INVALID_TABLES[*]}. Пожалуйста, повторите выбор. ${NC}"
+            log_message "${RED}Некорректные таблицы: ${INVALID_TABLES[*]}. Пожалуйста, повторите выбор. ${NC}"
             ((--i)) # Возвращаемся к предыдущей итерации
             continue
         else
@@ -169,7 +167,6 @@ done
 
 # Запрос на использование параллельного бэкапа
 while true; do
-    log_message 
     echo -e "${YELLOW}Хотите выполнить бэкап параллельно? ${NC}"
     echo -e "${YELLOW}- Введите 'yes' для параллельного бэкапа ${NC}"
     echo -e "${YELLOW}- Введите 'no' для последовательного бэкапа: ${NC}"
@@ -178,13 +175,12 @@ while true; do
     if [[ "$PARALLEL_BACKUP" == "yes" || "$PARALLEL_BACKUP" == "no" ]]; then
         break
     else
-        log_message echo -e "${RED}Пожалуйста, введите 'yes' или 'no'. ${NC}"
+        log_message "${RED}Пожалуйста, введите 'yes' или 'no'. ${NC}"
     fi
 done
 
 # Запрос на архивацию бэкапов
 while true; do
-    log_message 
     echo -e "${YELLOW}Хотите архивировать бэкапы? ${NC}"
     echo -e "${YELLOW}- Введите 'yes' для создания архива ${NC}"
     echo -e "${YELLOW}- Введите 'no' для сохранения файлов без архивации: ${NC}"
@@ -193,7 +189,7 @@ while true; do
     if [[ "$ARCHIVE_BACKUP" == "yes" || "$ARCHIVE_BACKUP" == "no" ]]; then
         break
     else
-        log_message echo -e "${RED}Пожалуйста, введите 'yes' или 'no'. ${NC}"
+        log_message "${RED}Пожалуйста, введите 'yes' или 'no'. ${NC}"
     fi
 done
 
@@ -243,17 +239,17 @@ fi
 # Архивация бэкапов
 if [[ "$ARCHIVE_BACKUP" == "yes" ]]; then
     BACKUP_ARCHIVE="$BACKUP_DIR/$DATABASE-backup-$TIMESTAMP.tar.gz"
-    log_message echo -e "${YELLOW} Архивация бэкапов в файл: $BACKUP_ARCHIVE ${NC}"
+    log_message "${YELLOW}Архивация бэкапов в файл: $BACKUP_ARCHIVE ${NC}"
     tar -czf "$BACKUP_ARCHIVE" -C "$TEMP_BACKUP_DIR" .
     if [ $? -eq 0 ]; then
-        log_message echo -e "${GREEN} Архив успешно создан: $BACKUP_ARCHIVE ${NC}"
+        log_message "${GREEN}Архив успешно создан: $BACKUP_ARCHIVE ${NC}"
     else
-        log_message echo -e "${RED} Ошибка при создании архива. ${NC}"
+        log_message "${RED}Ошибка при создании архива. ${NC}"
     fi
     # Удаление временной директории
     rm -rf "$TEMP_BACKUP_DIR"
 else
-    log_message echo -e "${YELLOW} Бэкапы оставлены в виде отдельных файлов в директории: $TEMP_BACKUP_DIR ${NC}"
+    log_message "${YELLOW}Бэкапы оставлены в виде отдельных файлов в директории: $TEMP_BACKUP_DIR ${NC}"
     mv "$TEMP_BACKUP_DIR"/* "$BACKUP_DIR/"
     rmdir "$TEMP_BACKUP_DIR"
 fi
@@ -264,10 +260,10 @@ EXECUTION_TIME=$((END_TIME - START_TIME))
 
 # Легенда
 print_header "Отчёт о работе скрипта"
-echo -e "${GREEN} Результаты работы скрипта: ${NC}"
+echo -e "${GREEN}Результаты работы скрипта: ${NC}"
 echo -e "Успешно забэкапировано таблиц: ${SUCCESSFUL_BACKUPS}"
 if [ ${#FAILED_BACKUPS[@]} -ne 0 ]; then
-    echo -e "${RED} Ошибки при бэкапе таблиц: ${FAILED_BACKUPS[*]} ${NC}"
+    echo -e "${RED}Ошибки при бэкапе таблиц: ${FAILED_BACKUPS[*]} ${NC}"
 fi
 if [[ "$ARCHIVE_BACKUP" == "yes" ]]; then
     echo -e "Архив бэкапа: ${BACKUP_ARCHIVE} "
