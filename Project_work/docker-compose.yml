@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse
+    ports:
+      - "8123:8123"  # HTTP порт
+      - "9000:9000"  # TCP порт
+    volumes:
+      - ./data:/var/lib/clickhouse  # Директория для хранения данных
+      - ./init.sql:/docker-entrypoint-initdb.d/example1.sql  # Скрипт для инициализации данных
+      - ./example2.sql:/docker-entrypoint-initdb.d/example2.sql  # Скрипт для второй базы
+      - ./example3.sql:/docker-entrypoint-initdb.d/example3.sql  # Скрипт для третей базы
+    environment:
+      CLICKHOUSE_DB: test_db
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: password
+    restart: always
