@@ -27,15 +27,31 @@ START_TIME=$(date +%s)
 print_header "Настройка подключения к ClickHouse"
 
 read -p "$(echo -e "${YELLOW}Введите хост ClickHouse (например, localhost): ${NC}")" HOST
-read -p "$(echo -e "${YELLOW}Введите порт ClickHouse (например, 8123): ${NC}")" PORT
+read -p "$(echo -e "${YELLOW}Введите порт ClickHouse (например, 8443): ${NC}")" PORT
 read -p "$(echo -e "${YELLOW}Введите имя пользователя ClickHouse: ${NC}")" USER
 read -s -p "$(echo -e "${YELLOW}Введите пароль пользователя ClickHouse: ${NC}")" PASSWORD
 echo
+read -p "$(echo -e "${YELLOW}Использовать самоподписанный сертификат? (yes/no): ${NC}")" USE_INSECURE_SSL
+read -p "$(echo -e "${YELLOW}Введите путь для сохранения бэкапа (например, /backups): ${NC}")" BACKUP_DIR
+
+# Проверка существования директории для бэкапов
+if [ ! -d "$BACKUP_DIR" ]; then
+    log_message "${RED}Директория $BACKUP_DIR не существует. Создаю...${NC}"
+    mkdir -p "$BACKUP_DIR"
+fi
+
+# Опции для curl
+CURL_OPTS="--user $USER:$PASSWORD"
+if [[ "$USE_INSECURE_SSL" == "yes" ]]; then
+    CURL_OPTS="$CURL_OPTS --insecure"
+else
+    CURL_OPTS="$CURL_OPTS --cacert /path/to/ca-cert.pem" # Укажите путь к CA-сертификату, если требуется
+fi
 
 # Получение списка баз данных
 print_header "Анализ доступных баз данных"
 
-DATABASES_INFO=$(curl -sS --user "$USER:$PASSWORD" "http://$HOST:$PORT/?query=SHOW+DATABASES")
+DATABASES_INFO=$(curl -sS $CURL_OPTS "https://$HOST:$PORT/?query=SHOW+DATABASES")
 if [ $? -ne 0 ]; then
     log_message "${RED}Не удалось получить список баз данных. Проверьте подключение.${NC}"
     exit 1
@@ -45,7 +61,7 @@ fi
 declare -A DATABASE_TABLES
 for DATABASE in $DATABASES_INFO; do
     if [[ "$DATABASE" != "system" && "$DATABASE" != "default" ]]; then
-        TABLES_INFO=$(curl -sS --user "$USER:$PASSWORD" "http://$HOST:$PORT/?database=$DATABASE&query=SHOW+TABLES")
+        TABLES_INFO=$(curl -sS $CURL_OPTS "https://$HOST:$PORT/?database=$DATABASE&query=SHOW+TABLES")
         if [ $? -eq 0 ]; then
             DATABASE_TABLES["$DATABASE"]="$TABLES_INFO"
         fi
@@ -120,7 +136,7 @@ backup_table() {
     DATABASE=$1
     TABLE=$2
     BACKUP_FILE="$TEMP_BACKUP_DIR/$DATABASE-$TABLE-$TIMESTAMP.sql"
-    curl -sS --user "$USER:$PASSWORD" "http://$HOST:$PORT/?database=$DATABASE&query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert" > "$BACKUP_FILE"
+    curl -sS $CURL_OPTS "https://$HOST:$PORT/?database=$DATABASE&query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert" > "$BACKUP_FILE"
     if [ $? -ne 0 ]; then
         echo "$DATABASE:$TABLE"
     else
