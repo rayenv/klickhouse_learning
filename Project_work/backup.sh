@@ -31,65 +31,80 @@ read -p "$(echo -e "${YELLOW}Введите порт ClickHouse (наприме�
 read -p "$(echo -e "${YELLOW}Введите имя пользователя ClickHouse: ${NC}")" USER
 read -s -p "$(echo -e "${YELLOW}Введите пароль пользователя ClickHouse: ${NC}")" PASSWORD
 echo
-read -p "$(echo -e "${YELLOW}Введите название базы данных для бэкапа: ${NC}")" DATABASE
-read -p "$(echo -e "${YELLOW}Введите путь для сохранения бэкапа (например, /backups): ${NC}")" BACKUP_DIR
 
-# Проверка существования директории для бэкапов
-if [ ! -d "$BACKUP_DIR" ]; then
-    log_message "${RED}Директория $BACKUP_DIR не существует. Создаю...${NC}"
-    mkdir -p "$BACKUP_DIR"
-fi
+# Получение списка баз данных
+print_header "Анализ доступных баз данных"
 
-# Получение списка таблиц и их размеров
-print_header "Анализ таблиц в базе данных $DATABASE"
-
-TABLES_INFO=$(curl -sS --user "$USER:$PASSWORD" "http://$HOST:$PORT/?database=$DATABASE&query=SELECT+name,+data_compressed_bytes+FROM+system.tables+WHERE+database='$DATABASE'")
+DATABASES_INFO=$(curl -sS --user "$USER:$PASSWORD" "http://$HOST:$PORT/?query=SHOW+DATABASES")
 if [ $? -ne 0 ]; then
-    log_message "${RED}Не удалось получить информацию о таблицах. Проверьте подключение.${NC}"
+    log_message "${RED}Не удалось получить список баз данных. Проверьте подключение.${NC}"
     exit 1
 fi
 
-# Парсинг таблиц и их размеров
-declare -A TABLE_SIZES
-while IFS=$'\t' read -r TABLE SIZE; do
-    TABLE_SIZES["$TABLE"]=$SIZE
-done <<< "$TABLES_INFO"
-
-# Вывод информации о таблицах
-log_message "${GREEN}Список таблиц и их размеры:${NC}"
-for TABLE in "${!TABLE_SIZES[@]}"; do
-    SIZE=${TABLE_SIZES[$TABLE]}
-    HUMAN_SIZE=$(numfmt --to=iec --suffix=B --padding=7 "$SIZE")
-    log_message "${YELLOW}$TABLE${NC}: ${HUMAN_SIZE}"
-done
-
-# Выбор таблиц для бэкапа
-log_message "${YELLOW}Введите названия таблиц для бэкапа через пробел (или 'all' для всех): ${NC}"
-read -r TABLE_SELECTION
-
-# Определение выбранных таблиц
-if [[ "$TABLE_SELECTION" == "all" ]]; then
-    SELECTED_TABLES=("${!TABLE_SIZES[@]}")
-else
-    read -ra SELECTED_TABLES <<< "$TABLE_SELECTION"
-fi
-
-# Проверка корректности выбранных таблиц
-INVALID_TABLES=()
-for TABLE in "${SELECTED_TABLES[@]}"; do
-    if [[ -z "${TABLE_SIZES[$TABLE]}" ]]; then
-        INVALID_TABLES+=("$TABLE")
+# Парсинг баз данных
+declare -A DATABASE_TABLES
+for DATABASE in $DATABASES_INFO; do
+    if [[ "$DATABASE" != "system" && "$DATABASE" != "default" ]]; then
+        TABLES_INFO=$(curl -sS --user "$USER:$PASSWORD" "http://$HOST:$PORT/?database=$DATABASE&query=SHOW+TABLES")
+        if [ $? -eq 0 ]; then
+            DATABASE_TABLES["$DATABASE"]="$TABLES_INFO"
+        fi
     fi
 done
 
-if [ ${#INVALID_TABLES[@]} -ne 0 ]; then
-    log_message "${RED}Некорректные таблицы: ${INVALID_TABLES[*]}. Пожалуйста, повторите выбор.${NC}"
+# Вывод информации о базах данных и таблицах
+log_message "${GREEN}Список доступных баз данных и таблиц:${NC}"
+for DATABASE in "${!DATABASE_TABLES[@]}"; do
+    echo -e "${YELLOW}База данных: $DATABASE${NC}"
+    echo -e "Таблицы:"
+    for TABLE in ${DATABASE_TABLES["$DATABASE"]}; do
+        echo -e "  - $TABLE"
+    done
+done
+
+# Выбор баз данных и таблиц для бэкапа
+log_message "${YELLOW}Введите названия баз данных для бэкапа через пробел (или 'all' для всех): ${NC}"
+read -r DB_SELECTION
+
+# Определение выбранных баз данных
+if [[ "$DB_SELECTION" == "all" ]]; then
+    SELECTED_DATABASES=("${!DATABASE_TABLES[@]}")
+else
+    read -ra SELECTED_DATABASES <<< "$DB_SELECTION"
+fi
+
+# Проверка корректности выбранных баз данных
+INVALID_DATABASES=()
+for DATABASE in "${SELECTED_DATABASES[@]}"; do
+    if [[ -z "${DATABASE_TABLES[$DATABASE]}" ]]; then
+        INVALID_DATABASES+=("$DATABASE")
+    fi
+done
+
+if [ ${#INVALID_DATABASES[@]} -ne 0 ]; then
+    log_message "${RED}Некорректные базы данных: ${INVALID_DATABASES[*]}. Пожалуйста, повторите выбор.${NC}"
     exit 1
 fi
+
+# Выбор таблиц для каждой базы данных
+declare -A SELECTED_TABLES
+for DATABASE in "${SELECTED_DATABASES[@]}"; do
+    log_message "${YELLOW}Выберите таблицы для бэкапа в базе '$DATABASE' через пробел (или 'all' для всех): ${NC}"
+    read -r TABLE_SELECTION
+    if [[ "$TABLE_SELECTION" == "all" ]]; then
+        SELECTED_TABLES["$DATABASE"]="${DATABASE_TABLES[$DATABASE]}"
+    else
+        read -ra SELECTED_TABLES["$DATABASE"] <<< "$TABLE_SELECTION"
+    fi
+done
 
 # Запрос на использование параллельного бэкапа
 log_message "${YELLOW}Хотите выполнить бэкап параллельно? (yes/no): ${NC}"
 read -r PARALLEL_BACKUP
+
+# Запрос на архивацию бэкапов
+log_message "${YELLOW}Хотите архивировать бэкапы? (yes/no): ${NC}"
+read -r ARCHIVE_BACKUP
 
 # Выполнение бэкапа
 print_header "Выполняется бэкап выбранных таблиц..."
@@ -102,47 +117,39 @@ FAILED_BACKUPS=()
 
 # Функция для бэкапа одной таблицы
 backup_table() {
-    TABLE=$1
+    DATABASE=$1
+    TABLE=$2
     BACKUP_FILE="$TEMP_BACKUP_DIR/$DATABASE-$TABLE-$TIMESTAMP.sql"
     curl -sS --user "$USER:$PASSWORD" "http://$HOST:$PORT/?database=$DATABASE&query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert" > "$BACKUP_FILE"
     if [ $? -ne 0 ]; then
-        echo "$TABLE"
+        echo "$DATABASE:$TABLE"
     else
         echo ""
     fi
 }
 
 # Выполнение бэкапа в зависимости от выбора пользователя
-if [[ "$PARALLEL_BACKUP" == "yes" ]]; then
-    log_message "${GREEN}Бэкап выполняется параллельно...${NC}"
-    FAILED_TABLES=$(printf "%s\n" "${SELECTED_TABLES[@]}" | xargs -n 1 -P 4 -I {} bash -c 'backup_table "$@"' _ {})
-else
-    log_message "${GREEN}Бэкап выполняется последовательно...${NC}"
-    for TABLE in "${SELECTED_TABLES[@]}"; do
-        FAILED_TABLE=$(backup_table "$TABLE")
+for DATABASE in "${!SELECTED_TABLES[@]}"; do
+    for TABLE in ${SELECTED_TABLES["$DATABASE"]}; do
+        if [[ "$PARALLEL_BACKUP" == "yes" ]]; then
+            FAILED_TABLE=$(backup_table "$DATABASE" "$TABLE" &)
+        else
+            FAILED_TABLE=$(backup_table "$DATABASE" "$TABLE")
+        fi
         if [[ -n "$FAILED_TABLE" ]]; then
             FAILED_BACKUPS+=("$FAILED_TABLE")
         else
             SUCCESSFUL_BACKUPS=$((SUCCESSFUL_BACKUPS + 1))
         fi
     done
-fi
+done
 
 # Обработка результатов параллельного бэкапа
 if [[ "$PARALLEL_BACKUP" == "yes" ]]; then
-    for TABLE in $FAILED_TABLES; do
-        if [[ -n "$TABLE" ]]; then
-            FAILED_BACKUPS+=("$TABLE")
-        else
-            SUCCESSFUL_BACKUPS=$((SUCCESSFUL_BACKUPS + 1))
-        fi
-    done
+    wait
 fi
 
-# Запрос на архивацию бэкапов
-log_message "${YELLOW}Хотите архивировать бэкапы? (yes/no): ${NC}"
-read -r ARCHIVE_BACKUP
-
+# Архивация бэкапов
 if [[ "$ARCHIVE_BACKUP" == "yes" ]]; then
     BACKUP_ARCHIVE="$BACKUP_DIR/$DATABASE-backup-$TIMESTAMP.tar.gz"
     log_message "${YELLOW}Архивация бэкапов в файл: $BACKUP_ARCHIVE${NC}"
