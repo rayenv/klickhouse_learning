@@ -35,11 +35,11 @@ START_TIME=$(date +%s)
 print_header "Настройка подключения к ClickHouse"
 
 # Ввод хоста
-read -p "$(echo -e "${YELLOW}Введите хост ClickHouse (например, localhost): ${NC}")" HOST
+read -p "$(echo -e "${YELLOW}Введите хост ClickHouse (например, localhost) [по умолчанию: localhost]: ${NC}")" HOST
 HOST=${HOST:-localhost} # Используем localhost по умолчанию
 
 # Ввод порта
-read -p "$(echo -e "${YELLOW}Введите порт ClickHouse (например, 8123): ${NC}")" PORT
+read -p "$(echo -e "${YELLOW}Введите порт ClickHouse (например, 8123) [по умолчанию: 8123]: ${NC}")" PORT
 PORT=${PORT:-8123} # Используем 8123 по умолчанию
 
 # Ввод имени пользователя
