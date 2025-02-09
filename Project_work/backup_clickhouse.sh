@@ -81,7 +81,8 @@ for DATABASE in $DATABASES_INFO; do
 done
 
 # Вывод информации о базах данных и таблицах
-log_message "${GREEN}Список доступных баз данных и таблиц: ${NC}"
+log_message 
+echo -e al"${GREEN} Список доступных баз данных и таблиц: ${NC}"
 for DATABASE in "${!DATABASE_TABLES[@]}"; do
     echo -e "${YELLOW}База данных: $DATABASE ${NC}"
     echo -e "Таблицы:"
@@ -90,11 +91,11 @@ for DATABASE in "${!DATABASE_TABLES[@]}"; do
     done
 done
 
+
 # Выбор баз данных для бэкапа
 while true; do
     echo -e "${YELLOW}Введите названия баз данных для бэкапа через пробел: ${NC}"
-    echo -e "${YELLOW}- или 'all' для бекапа всех пользовательских таблиц ${NC}"
-    echo -e "${YELLOW}- или 'all+system' для включения в бекап системных таблиц: ${NC}"
+    echo -e "${YELLOW}- или 'all' для бекапа всех баз ${NC}"
     read -r DB_SELECTION
 
     # Если выбрано 'all', выбираем все пользовательские базы данных
@@ -106,10 +107,11 @@ while true; do
             fi
         done
         break
-    # Если выбрано 'all+system', выбираем все базы данных, включая системные
-    elif [[ "$DB_SELECTION" == "all+system" ]]; then
-        SELECTED_DATABASES=("${!DATABASE_TABLES[@]}")
-        break
+    # TBD - доработать обработку связки всё+системные таблицы
+    # # Если выбрано 'all+system', выбираем все базы данных, включая системные
+    # elif [[ "$DB_SELECTION" == "all+system" ]]; then
+    #     SELECTED_DATABASES=("${!DATABASE_TABLES[@]}")
+    #     break
     else
         # Разбиваем ввод на массив
         read -ra SELECTED_DATABASES <<< "$DB_SELECTION"
