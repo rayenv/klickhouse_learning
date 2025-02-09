@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Файл лога
+LOG_FILE="backup_clickhouse.log"
+
+# Перенаправление всего вывода в файл лога
+exec > >(tee -a "$LOG_FILE") 2>&1
+
 # Проверка поддержки цветов
 if [ -t 1 ]; then
     RED='\033[0;31m'
@@ -20,12 +26,6 @@ print_header() {
     echo -e "${BLUE}***********************************************${NC}"
     echo -e "${BLUE}* $1 ${NC}"
     echo -e "${BLUE}***********************************************${NC}"
-}
-
-# Логирование
-LOG_FILE="backup_clickhouse.log"
-log_message() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" | tee -a "$LOG_FILE"
 }
 
 # Функция для получения статистики по таблицам
@@ -96,22 +96,22 @@ fi
 
 # Проверка подключения к ClickHouse
 check_connection() {
-    log_message "Проверка подключения к ClickHouse..."
+    echo -e "Проверка подключения к ClickHouse..."
     TEST_QUERY="SHOW+DATABASES"
     RESPONSE=$(curl -sS $CURL_OPTS "$PROTOCOL://$HOST:$PORT/?query=$TEST_QUERY" 2>&1)
     if [[ $? -eq 0 && -n "$RESPONSE" ]]; then
-        log_message "${GREEN}Подключение к ClickHouse успешно установлено. ${NC}"
+        echo -e "${GREEN}Подключение к ClickHouse успешно установлено. ${NC}"
         return 0
     else
-        log_message "${RED}Не удалось подключиться к ClickHouse. Проверьте введенные данные. ${NC}"
-        log_message "${RED}Ответ сервера: $RESPONSE ${NC}"
+        echo -e "${RED}Не удалось подключиться к ClickHouse. Проверьте введенные данные. ${NC}"
+        echo -e "${RED}Ответ сервера: $RESPONSE ${NC}"
         return 1
     fi
 }
 
 # Проверка подключения
 if ! check_connection; then
-    log_message "${RED}Выход из скрипта. ${NC}"
+    echo -e "${RED}Выход из скрипта. ${NC}"
     exit 1
 fi
 
@@ -119,12 +119,12 @@ fi
 print_header "Анализ доступных баз данных"
 DATABASES_INFO=$(curl -sS $CURL_OPTS "$PROTOCOL://$HOST:$PORT/?query=SHOW+DATABASES" 2>/dev/null)
 if [ $? -ne 0 ]; then
-    log_message "${RED}Не удалось получить список баз данных. Проверьте подключение. ${NC}"
+    echo -e "${RED}Не удалось получить список баз данных. Проверьте подключение. ${NC}"
     exit 1
 fi
 
 # Вывод списка баз данных
-log_message "${GREEN}Список доступных баз данных: ${NC}"
+echo -e "${GREEN}Список доступных баз данных: ${NC}"
 for DATABASE in $DATABASES_INFO; do
     echo -e "${YELLOW}- $DATABASE ${NC}"
 done
@@ -151,7 +151,7 @@ while true; do
         done
 
         if [ ${#INVALID_DATABASES[@]} -ne 0 ]; then
-            log_message "${RED}Некорректные базы данных: ${INVALID_DATABASES[*]}. Пожалуйста, повторите выбор. ${NC}"
+            echo -e "${RED}Некорректные базы данных: ${INVALID_DATABASES[*]}. Пожалуйста, повторите выбор. ${NC}"
         else
             break
         fi
@@ -172,10 +172,11 @@ for DATABASE in "${SELECTED_DATABASES[@]}"; do
             ROWS_COUNT=$(echo "$STATS" | cut -d'|' -f1)
             TABLE_SIZE_MB=$(echo "$STATS" | cut -d'|' -f2)
             echo -e "  - $TABLE (строк: ${ROWS_COUNT:-N/A}, размер: ${TABLE_SIZE_MB:-N/A} MB)"
+            echo -e "${BLUE}***********************************************${NC}"
             TABLE_STATS["$DATABASE:$TABLE"]=$STATS
         done
     else
-        log_message "${RED}Не удалось получить список таблиц для базы '$DATABASE'. Пропускаем... ${NC}"
+        echo -e "${RED}Не удалось получить список таблиц для базы '$DATABASE'. Пропускаем... ${NC}"
     fi
 done
 
@@ -188,7 +189,7 @@ for DATABASE in "${SELECTED_DATABASES[@]}"; do
     read -r TABLE_SELECTION
 
     if [[ "$TABLE_SELECTION" == "-" ]]; then
-        log_message "${YELLOW}Бэкап таблиц базы '$DATABASE' пропущен. ${NC}"
+        echo -e "${YELLOW} Бэкап таблиц базы '$DATABASE' пропущен. ${NC}"
         continue
     elif [[ "$TABLE_SELECTION" == "all" ]]; then
         SELECTED_TABLES["$DATABASE"]="${DATABASE_TABLES[$DATABASE]}"
@@ -205,7 +206,7 @@ for DATABASE in "${SELECTED_DATABASES[@]}"; do
         done
 
         if [ ${#INVALID_TABLES[@]} -ne 0 ]; then
-            log_message "${RED}Некорректные таблицы: ${INVALID_TABLES[*]}. Пожалуйста, повторите выбор. ${NC}"
+            echo -e "${RED}Некорректные таблицы: ${INVALID_TABLES[*]}. Пожалуйста, повторите выбор. ${NC}"
             ((--i)) # Возвращаемся к предыдущей итерации
             continue
         else
@@ -224,7 +225,7 @@ while true; do
     if [[ "$PARALLEL_BACKUP" == "yes" || "$PARALLEL_BACKUP" == "no" ]]; then
         break
     else
-        log_message "${RED}Пожалуйста, введите 'yes' или 'no'. ${NC}"
+        echo -e "${RED}Пожалуйста, введите 'yes' или 'no'. ${NC}"
     fi
 done
 
@@ -238,7 +239,7 @@ while true; do
     if [[ "$ARCHIVE_BACKUP" == "yes" || "$ARCHIVE_BACKUP" == "no" ]]; then
         break
     else
-        log_message "${RED}Пожалуйста, введите 'yes' или 'no'. ${NC}"
+        echo -e "${RED}Пожалуйста, введите 'yes' или 'no'. ${NC}"
     fi
 done
 
@@ -255,13 +256,13 @@ backup_table() {
     DATABASE=$1
     TABLE=$2
     BACKUP_FILE="$TEMP_BACKUP_DIR/$DATABASE-$TABLE-$TIMESTAMP.sql"
-    log_message "Выполняется бэкап таблицы '$TABLE' из базы '$DATABASE'..."
+    echo -e "Выполняется бэкап таблицы '$TABLE' из базы '$DATABASE'..."
     curl -sS $CURL_OPTS "$PROTOCOL://$HOST:$PORT/?database=$DATABASE&query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert" > "$BACKUP_FILE"
     if [ $? -ne 0 ]; then
-        log_message "${RED}Ошибка при бэкапе таблицы '$TABLE' из базы '$DATABASE'. ${NC}"
+        echo -e "${RED}Ошибка при бэкапе таблицы '$TABLE' из базы '$DATABASE'. ${NC}"
         echo "$DATABASE:$TABLE"
     else
-        log_message "${GREEN}Бэкап таблицы '$TABLE' из базы '$DATABASE' успешно завершен. ${NC}"
+        echo -e "${GREEN}Бэкап таблицы '$TABLE' из базы '$DATABASE' успешно завершен. ${NC}"
         echo ""
     fi
 }
@@ -290,17 +291,17 @@ fi
 # Архивация бэкапов
 if [[ "$ARCHIVE_BACKUP" == "yes" ]]; then
     BACKUP_ARCHIVE="$TEMP_BACKUP_DIR/$DATABASE-backup-$TIMESTAMP.tar.gz"
-    log_message "${YELLOW}Архивация бэкапов в файл: $BACKUP_ARCHIVE ${NC}"
+    echo -e "${YELLOW}Архивация бэкапов в файл: $BACKUP_ARCHIVE ${NC}"
     tar -czf "$BACKUP_ARCHIVE" -C "$TEMP_BACKUP_DIR" .
     if [ $? -eq 0 ]; then
-        log_message "${GREEN}Архив успешно создан: $BACKUP_ARCHIVE ${NC}"
+        echo -e "${GREEN}Архив успешно создан: $BACKUP_ARCHIVE ${NC}"
     else
-        log_message "${RED}Ошибка при создании архива. ${NC}"
+        echo -e "${RED}Ошибка при создании архива. ${NC}"
     fi
     # Удаление временной директории
     rm -rf "$TEMP_BACKUP_DIR"
 else
-    log_message "${YELLOW}Бэкапы оставлены в виде отдельных файлов в директории: $TEMP_BACKUP_DIR ${NC}"
+    echo -e "${YELLOW}Бэкапы оставлены в виде отдельных файлов в директории: $TEMP_BACKUP_DIR ${NC}"
     mv "$TEMP_BACKUP_DIR"/* "$BACKUP_DIR/"
     rmdir "$TEMP_BACKUP_DIR"
 fi
