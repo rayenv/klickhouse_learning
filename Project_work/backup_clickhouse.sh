@@ -237,13 +237,6 @@ while true; do
     fi
 done
 
-# Выполнение бэкапа
-print_header "Выполняется бэкап выбранных таблиц..."
-TIMESTAMP=$(date +"%Y%m%d%H%M%S")
-TEMP_BACKUP_DIR=$(mktemp -d)
-SUCCESSFUL_BACKUPS=0
-FAILED_BACKUPS=()
-
 # Функция для бэкапа одной таблицы
 backup_table() {
     DATABASE=$1
