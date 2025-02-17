@@ -303,6 +303,18 @@ EXECUTION_TIME=$((END_TIME - START_TIME))
 
 # Легенда
 print_header "Отчёт о работе скрипта"
+
+# Вычисление размера бэкапа
+if [[ "$ARCHIVE_BACKUP" == "yes" ]]; then
+    BACKUP_SIZE=$(du -sh "$BACKUP_ARCHIVE" 2>/dev/null | cut -f1)
+else
+    BACKUP_SIZE=$(du -sh "$BACKUP_DIR" 2>/dev/null | cut -f1)
+fi
+
+# Вычисление размера файла лога
+LOG_FILE_SIZE=$(du -sh "$LOG_FILE" 2>/dev/null | cut -f1)
+
+# Вывод результатов
 echo -e "${GREEN}Результаты работы скрипта:${NC}"
 echo -e "Успешно забэкапировано таблиц: ${SUCCESSFUL_BACKUPS}"
 if [ ${#FAILED_BACKUPS[@]} -ne 0 ]; then
@@ -311,8 +323,10 @@ fi
 if [[ "$ARCHIVE_BACKUP" == "yes" ]]; then
     echo -e "Архив бэкапа: $BACKUP_ARCHIVE"
 else
-    echo -e "Бэкапы находятся в директории: $TEMP_BACKUP_DIR"
+    echo -e "Бэкапы находятся в директории: $BACKUP_DIR"
 fi
+echo -e "Общий объём бэкапа: ${BACKUP_SIZE}"
+echo -e "Размер файла лога: ${LOG_FILE_SIZE}"
 echo -e "Файл логов: $(pwd)/${LOG_FILE}"
 echo -e "Время выполнения скрипта: ${EXECUTION_TIME} секунд"
 
