@@ -297,13 +297,16 @@ if [[ "$ARCHIVE_BACKUP" == "yes" ]]; then
     tar -czf "$BACKUP_ARCHIVE" -C "$TEMP_BACKUP_DIR" .
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Архив успешно создан: $BACKUP_ARCHIVE${NC}"
+        BACKUP_FILES=("$BACKUP_ARCHIVE") # Сохраняем имя архива
     else
         echo -e "${RED}Ошибка при создании архива.${NC}"
+        BACKUP_FILES=() # Оставляем пустым в случае ошибки
     fi
 else
     # Перемещаем файлы бэкапа в указанную директорию
     echo -e "${YELLOW}Бэкапы оставлены в виде отдельных файлов в директории: $BACKUP_DIR${NC}"
     mv "$TEMP_BACKUP_DIR"/* "$BACKUP_DIR/"
+    BACKUP_FILES=("$BACKUP_DIR"/*) # Собираем список файлов
 fi
 
 # Удаление временной директории
@@ -336,11 +339,11 @@ if [[ "$ARCHIVE_BACKUP" == "yes" ]]; then
     echo -e "Архив бэкапа: $BACKUP_ARCHIVE"
 else
     echo -e "Бэкапы находятся в директории: $BACKUP_DIR"
-    echo -e "Список файлов бэкапа:"
-    for FILE in "${BACKUP_FILES[@]}"; do
-        echo -e "  - $(basename "$FILE")"
-    done
 fi
+echo -e "Список файлов бэкапа:"
+for FILE in "${BACKUP_FILES[@]}"; do
+    echo -e "  - $(basename "$FILE")"
+done
 echo -e "Общий объём бэкапа: ${BACKUP_SIZE}"
 echo -e "Размер файла лога: ${LOG_FILE_SIZE}"
 echo -e "Файл логов: $(pwd)/${LOG_FILE}"
