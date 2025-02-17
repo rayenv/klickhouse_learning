@@ -197,7 +197,7 @@ done
 # Выбор таблиц для каждой базы данных
 declare -A SELECTED_TABLES
 for DATABASE in "${SELECTED_DATABASES[@]}"; do
-    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${BULE}Выберите таблицы для бэкапа в базе '$DATABASE':${NC}"
+    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${BLUE}Выберите таблицы для бэкапа в базе '$DATABASE':${NC}"
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или 'all' для бекапа всех таблиц${NC}"
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или '-' для отказа от бекапа таблиц этой базы:${NC}"
     read -r TABLE_SELECTION
