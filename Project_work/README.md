@@ -87,10 +87,11 @@ ___
 
 ### 1. Подготовка окружения
 Убедитесь, что у вас установлены следующие компоненты:
-- Docker и Docker Compose.
-- Bash (для выполнения скрипта).
-- Curl (обращение к KH).
-- Tar (архивация).
+- Docker и Docker Compose ([платформа](https://docs.docker.com/engine/install/)). 
+- Git ([получение исходников](https://git-scm.com/downloads/linux)).
+- Bash ([выполнение скрипта](https://www.gnu.org/savannah-checkouts/gnu/bash/manual/bash.html)).
+- Curl ([http запросы в KH](https://curl.se/)).
+- Tar ([архивация](https://www.opennet.ru/man.shtml?topic=tar&category=1)).
 
 ### 2. Клонирование репозитория
 Склонируйте репозиторий с проектом:
