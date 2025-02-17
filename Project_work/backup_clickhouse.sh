@@ -258,7 +258,7 @@ backup_table() {
     fi
 
     # Формирование URL с экранированием символов
-    QUERY_URL="$PROTOCOL://$HOST:$PORT/?database=$DATABASE%26query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert"
+    QUERY_URL="$PROTOCOL://$HOST:$PORT/?database=$DATABASE&query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert"
 
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') Выполняется бэкап таблицы '$TABLE' из базы '$DATABASE'..."
     curl -sS $CURL_OPTS "$QUERY_URL" > "$BACKUP_FILE"
