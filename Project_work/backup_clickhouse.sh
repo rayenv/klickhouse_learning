@@ -251,12 +251,13 @@ backup_table() {
     TABLE=$2
     BACKUP_FILE="$TEMP_BACKUP_DIR/$DATABASE-$TABLE-$TIMESTAMP.sql"
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') Выполняется бэкап таблицы '$TABLE' из базы '$DATABASE'..."
-    curl -sS $CURL_OPTS "$PROTOCOL://$HOST:$PORT/?database=$DATABASE&query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert" > "$BACKUP_FILE"
+    curl -sS $CURL_OPTS "$PROTOCOL://$HOST:$PORT/?database=$DATABASE &query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert" > "$BACKUP_FILE"
     if [ $? -ne 0 ]; then
         echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${RED}Ошибка при бэкапе таблицы '$TABLE' из базы '$DATABASE'.${NC}"
         return 1 # Возвращаем код ошибки
     else
         echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${GREEN}Бэкап таблицы '$TABLE' из базы '$DATABASE' успешно завершен.${NC}"
+        BACKUP_FILES+=("$BACKUP_FILE") # Добавляем имя файла в массив
         return 0 # Возвращаем код успеха
     fi
 }
@@ -267,6 +268,7 @@ TIMESTAMP=$(date +"%Y%m%d%H%M%S")
 TEMP_BACKUP_DIR=$(mktemp -d)
 SUCCESSFUL_BACKUPS=0
 FAILED_BACKUPS=()
+BACKUP_FILES=() # Массив для хранения имён файлов бэкапа
 
 for DATABASE in "${!SELECTED_TABLES[@]}"; do
     for TABLE in ${SELECTED_TABLES["$DATABASE"]}; do
@@ -325,6 +327,10 @@ if [[ "$ARCHIVE_BACKUP" == "yes" ]]; then
     echo -e "Архив бэкапа: $BACKUP_ARCHIVE"
 else
     echo -e "Бэкапы находятся в директории: $BACKUP_DIR"
+    echo -e "Список файлов бэкапа:"
+    for FILE in "${BACKUP_FILES[@]}"; do
+        echo -e "  - $(basename "$FILE")"
+    done
 fi
 echo -e "Общий объём бэкапа: ${BACKUP_SIZE}"
 echo -e "Размер файла лога: ${LOG_FILE_SIZE}"
