@@ -123,7 +123,7 @@ contains_element() {
 }
 
 while true; do
-    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Введите названия баз данных для бэкапа через пробел:${NC}"
+    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${BLUE}Введите названия баз данных для бэкапа через пробел:${NC}"
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или 'all' для бекапа всех пользовательских таблиц${NC}"
     read -r DB_SELECTION
 
@@ -197,7 +197,7 @@ done
 # Выбор таблиц для каждой базы данных
 declare -A SELECTED_TABLES
 for DATABASE in "${SELECTED_DATABASES[@]}"; do
-    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Выберите таблицы для бэкапа в базе '$DATABASE':${NC}"
+    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${BULE}Выберите таблицы для бэкапа в базе '$DATABASE':${NC}"
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или 'all' для бекапа всех таблиц${NC}"
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или '-' для отказа от бекапа таблиц этой базы:${NC}"
     read -r TABLE_SELECTION
@@ -225,7 +225,7 @@ done
 
 # Запрос на архивацию бэкапов
 while true; do
-    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Хотите архивировать бэкапы?${NC}"
+    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${BLUE}Хотите архивировать бэкапы?${NC}"
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- Введите 'yes' для создания архива${NC}"
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- Введите 'no' для сохранения файлов без архивации:${NC}"
     read -r ARCHIVE_BACKUP
