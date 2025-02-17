@@ -198,30 +198,38 @@ done
 # Выбор таблиц для каждой базы данных
 declare -A SELECTED_TABLES
 for DATABASE in "${SELECTED_DATABASES[@]}"; do
-    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${BLUE}Выберите таблицы для бэкапа в базе '$DATABASE':${NC}"
-    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или 'all' для бекапа всех таблиц${NC}"
-    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или '-' для отказа от бекапа таблиц этой базы:${NC}"
-    read -r TABLE_SELECTION
-    if [[ "$TABLE_SELECTION" == "-" ]]; then
-        echo -e "${YELLOW}Бэкап таблиц базы '$DATABASE' пропущен.${NC}"
-        continue
-    elif [[ "$TABLE_SELECTION" == "all" ]]; then
-        SELECTED_TABLES["$DATABASE"]="${DATABASE_TABLES[$DATABASE]}"
-    else
-        read -ra SELECTED_TABLES_ARRAY <<< "$TABLE_SELECTION"
-        INVALID_TABLES=()
-        for TABLE in "${SELECTED_TABLES_ARRAY[@]}"; do
-            if ! contains_element "$TABLE" ${DATABASE_TABLES["$DATABASE"]}; then
-                INVALID_TABLES+=("$TABLE")
-            fi
-        done
-        if [ ${#INVALID_TABLES[@]} -ne 0 ]; then
-            echo -e "${RED}Некорректные таблицы: ${INVALID_TABLES[*]}. Пожалуйста, повторите выбор.${NC}"
-            continue
+    while true; do
+        echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${BLUE}Выберите таблицы для бэкапа в базе ${GREEN}'$DATABASE':${NC}"
+        echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или 'all' для бекапа всех таблиц${NC}"
+        echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или '-' для отказа от бекапа таблиц этой базы:${NC}"
+        read -r TABLE_SELECTION
+
+        if [[ "$TABLE_SELECTION" == "-" ]]; then
+            echo -e "${YELLOW}Бэкап таблиц базы '$DATABASE' пропущен.${NC}"
+            break
+        elif [[ "$TABLE_SELECTION" == "all" ]]; then
+            SELECTED_TABLES["$DATABASE"]="${DATABASE_TABLES[$DATABASE]}"
+            break
         else
-            SELECTED_TABLES["$DATABASE"]="${SELECTED_TABLES_ARRAY[@]}"
+            # Разбиваем ввод на массив
+            read -ra SELECTED_TABLES_ARRAY <<< "$TABLE_SELECTION"
+
+            # Проверяем корректность выбранных таблиц
+            INVALID_TABLES=()
+            for TABLE in "${SELECTED_TABLES_ARRAY[@]}"; do
+                if ! [[ " ${DATABASE_TABLES[$DATABASE]} " =~ " $TABLE " ]]; then
+                    INVALID_TABLES+=("$TABLE")
+                fi
+            done
+
+            if [ ${#INVALID_TABLES[@]} -ne 0 ]; then
+                echo -e "${RED}Некорректные таблицы: ${INVALID_TABLES[*]}. Пожалуйста, повторите выбор.${NC}"
+            else
+                SELECTED_TABLES["$DATABASE"]="${SELECTED_TABLES_ARRAY[@]}"
+                break
+            fi
         fi
-    fi
+    done
 done
 
 # Запрос на архивацию бэкапов
