@@ -40,6 +40,21 @@ USER=${USER:-default} # Используем default по умолчанию
 read -s -p "$(echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Введите пароль пользователя ClickHouse (оставьте пустым, если пароль не требуется): ${NC}")" PASSWORD
 echo
 
+# Запрос на выбор протокола (HTTP или HTTPS)
+while true; do
+    read -p "$(echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Выберите протокол для подключения к ClickHouse (http/https): ${NC}")" PROTOCOL
+    if [[ "$PROTOCOL" == "http" || "$PROTOCOL" == "https" ]]; then
+        break
+    else
+        echo -e "${RED}Пожалуйста, введите 'http' или 'https'.${NC}"
+    fi
+done
+
+# Определение опций для curl
+CURL_OPTS="--user $USER:$PASSWORD --max-time 10" # Таймаут 10 секунд
+if [[ "$PROTOCOL" == "https" ]]; then
+    CURL_OPTS="$CURL_OPTS --insecure" # Добавляем флаг --insecure для HTTPS
+fi
 
 # Добавляем запрос на выбор директории
 print_header "Выбор директории для сохранения бэкапа"
@@ -72,22 +87,6 @@ if [[ ! -w "$BACKUP_DIR" ]]; then
 fi
 
 echo -e "${GREEN}Бэкапы будут сохраняться в директории: $BACKUP_DIR${NC}"
-
-# Запрос на выбор протокола (HTTP или HTTPS)
-while true; do
-    read -p "$(echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Выберите протокол для подключения к ClickHouse (http/https): ${NC}")" PROTOCOL
-    if [[ "$PROTOCOL" == "http" || "$PROTOCOL" == "https" ]]; then
-        break
-    else
-        echo -e "${RED}Пожалуйста, введите 'http' или 'https'.${NC}"
-    fi
-done
-
-# Определение опций для curl
-CURL_OPTS="--user $USER:$PASSWORD --max-time 10" # Таймаут 10 секунд
-if [[ "$PROTOCOL" == "https" ]]; then
-    CURL_OPTS="$CURL_OPTS --insecure" # Добавляем флаг --insecure для HTTPS
-fi
 
 # Проверка подключения к ClickHouse
 print_header "Проверка подключения к ClickHouse"

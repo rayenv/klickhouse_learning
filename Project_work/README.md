@@ -115,17 +115,21 @@ curl -sS --user "default:password" "http://localhost:8123/?query=SHOW+DATABASES"
 ### 5. Настройка скрипта бэкапа
 Сделайте скрипт исполняемым:
 ```bash
-chmod +x backup_v2.sh
+chmod +x backup_clickhouse.sh
 ```
 
 ### 6. Запуск скрипта бэкапа
 Запустите скрипт:
 ```bash
-./backup_v2.sh
+./backup_clickhouse.sh
 ```
 
 Скрипт запросит у вас данные для подключения к ClickHouse, путь для сохранения бэкапов и запрос архивации.
 
+### 7. В конце работы очистите тестовое окружение
+```bash
+docker-compose down -v
+```
 ---
 ### Ожидаемый пример работы скрипта:
 
