@@ -60,8 +60,8 @@ fi
 # Добавляем запрос на выбор директории
 print_header "Выбор директории для сохранения бэкапа"
 DEFAULT_BACKUP_DIR=$(pwd)
-read -p "$(echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Введите путь к директории для сохранения бэкапа [по умолчанию: $DEFAULT_BACKUP_DIR]: ${NC}")" BACKUP_DIR
-BACKUP_DIR=${BACKUP_DIR:-$DEFAULT_BACKUP_DIR}
+read -p "$(echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Введите путь к директории для сохранения бэкапа [по умолчанию: $DEFAULT_BACKUP_DIR/backup]: ${NC}")" BACKUP_DIR
+BACKUP_DIR=${BACKUP_DIR:-$DEFAULT_BACKUP_DIR/backup}
 
 # Проверка существования директории
 if [[ ! -d "$BACKUP_DIR" ]]; then
@@ -250,15 +250,24 @@ backup_table() {
     DATABASE=$1
     TABLE=$2
     BACKUP_FILE="$TEMP_BACKUP_DIR/$DATABASE-$TABLE-$TIMESTAMP.sql"
+
+    # Проверка корректности имён базы данных и таблицы
+    if [[ ! "$DATABASE" =~ ^[a-zA-Z0-9_]+$ || ! "$TABLE" =~ ^[a-zA-Z0-9_]+$ ]]; then
+        echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${RED}Ошибка: Некорректное имя базы данных или таблицы ('$DATABASE', '$TABLE').${NC}"
+        return 1
+    fi
+
+    # Формирование URL с экранированием символов
+    QUERY_URL="$PROTOCOL://$HOST:$PORT/?database=$DATABASE%26query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert"
+
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') Выполняется бэкап таблицы '$TABLE' из базы '$DATABASE'..."
-    curl -sS $CURL_OPTS "$PROTOCOL://$HOST:$PORT/?database=$DATABASE &query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert" > "$BACKUP_FILE"
+    curl -sS $CURL_OPTS "$QUERY_URL" > "$BACKUP_FILE"
     if [ $? -ne 0 ]; then
         echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${RED}Ошибка при бэкапе таблицы '$TABLE' из базы '$DATABASE'.${NC}"
-        return 1 # Возвращаем код ошибки
+        return 1
     else
         echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${GREEN}Бэкап таблицы '$TABLE' из базы '$DATABASE' успешно завершен.${NC}"
-        BACKUP_FILES+=("$BACKUP_FILE") # Добавляем имя файла в массив
-        return 0 # Возвращаем код успеха
+        return 0
     fi
 }
 
