@@ -43,6 +43,7 @@ echo
 # Запрос на выбор протокола (HTTP или HTTPS)
 while true; do
     read -p "$(echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Выберите протокол для подключения к ClickHouse (http/https): ${NC}")" PROTOCOL
+    PROTOCOL=${PROTOCOL:-http}
     if [[ "$PROTOCOL" == "http" || "$PROTOCOL" == "https" ]]; then
         break
     else
