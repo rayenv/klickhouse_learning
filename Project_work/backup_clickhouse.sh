@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # Файл лога
 LOG_FILE="backup_clickhouse.log"
 # Перенаправление всего вывода в файл лога
@@ -10,6 +11,14 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# Проверка наличия awscli
+check_aws_cli() {
+    if ! command -v aws &> /dev/null; then
+        echo -e "${RED}AWS CLI не установлен. Для поддержки S3 необходимо установить AWS CLI.${NC}"
+        exit 1
+    fi
+}
 
 # Функция для вывода заголовков
 print_header() {
@@ -57,7 +66,7 @@ if [[ "$PROTOCOL" == "https" ]]; then
     CURL_OPTS="$CURL_OPTS --insecure" # Добавляем флаг --insecure для HTTPS
 fi
 
-# Добавляем запрос на выбор директории
+# Выбор директории для сохранения бэкапа
 print_header "Выбор директории для сохранения бэкапа"
 DEFAULT_BACKUP_DIR=$(pwd)
 read -p "$(echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Введите путь к директории для сохранения бэкапа [по умолчанию: $DEFAULT_BACKUP_DIR/backup]: ${NC}")" BACKUP_DIR
@@ -127,7 +136,6 @@ while true; do
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${BLUE}Введите названия баз данных для бэкапа через пробел:${NC}"
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или 'all' для бекапа всех пользовательских таблиц${NC}"
     read -r DB_SELECTION
-
     if [[ "$DB_SELECTION" == "all" ]]; then
         SELECTED_DATABASES=()
         for DATABASE in $DATABASES_INFO; do
@@ -203,7 +211,6 @@ for DATABASE in "${SELECTED_DATABASES[@]}"; do
         echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или 'all' для бекапа всех таблиц${NC}"
         echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- или '-' для отказа от бекапа таблиц этой базы:${NC}"
         read -r TABLE_SELECTION
-
         if [[ "$TABLE_SELECTION" == "-" ]]; then
             echo -e "${YELLOW}Бэкап таблиц базы '$DATABASE' пропущен.${NC}"
             break
@@ -213,7 +220,6 @@ for DATABASE in "${SELECTED_DATABASES[@]}"; do
         else
             # Разбиваем ввод на массив
             read -ra SELECTED_TABLES_ARRAY <<< "$TABLE_SELECTION"
-
             # Проверяем корректность выбранных таблиц
             INVALID_TABLES=()
             for TABLE in "${SELECTED_TABLES_ARRAY[@]}"; do
@@ -221,7 +227,6 @@ for DATABASE in "${SELECTED_DATABASES[@]}"; do
                     INVALID_TABLES+=("$TABLE")
                 fi
             done
-
             if [ ${#INVALID_TABLES[@]} -ne 0 ]; then
                 echo -e "${RED}Некорректные таблицы: ${INVALID_TABLES[*]}. Пожалуйста, повторите выбор.${NC}"
             else
@@ -245,21 +250,39 @@ while true; do
     fi
 done
 
+# Поддержка S3
+UPLOAD_TO_S3="no"
+while true; do
+    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${BLUE}Загрузить бэкап в S3?${NC}"
+    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- Введите 'yes' для загрузки в S3${NC}"
+    echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}- Введите 'no' для пропуска:${NC}"
+    read -r UPLOAD_TO_S3
+    if [[ "$UPLOAD_TO_S3" == "yes" || "$UPLOAD_TO_S3" == "no" ]]; then
+        break
+    else
+        echo -e "${RED}Пожалуйста, введите 'yes' или 'no'.${NC}"
+    fi
+done
+
+if [[ "$UPLOAD_TO_S3" == "yes" ]]; then
+    check_aws_cli
+    read -p "$(echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Введите имя S3-бакета: ${NC}")" S3_BUCKET
+    read -p "$(echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}Введите путь внутри бакета (необязательно): ${NC}")" S3_PATH
+    S3_PATH=${S3_PATH%/} # Удаляем завершающий слеш
+fi
+
 # Функция для бэкапа одной таблицы
 backup_table() {
     DATABASE=$1
     TABLE=$2
     BACKUP_FILE="$TEMP_BACKUP_DIR/$DATABASE-$TABLE-$TIMESTAMP.sql"
-
     # Проверка корректности имён базы данных и таблицы
     if [[ ! "$DATABASE" =~ ^[a-zA-Z0-9_]+$ || ! "$TABLE" =~ ^[a-zA-Z0-9_]+$ ]]; then
         echo -e "$(date '+%Y-%m-%d %H:%M:%S') ${RED}Ошибка: Некорректное имя базы данных или таблицы ('$DATABASE', '$TABLE').${NC}"
         return 1
     fi
-
     # Формирование URL с экранированием символов
     QUERY_URL="$PROTOCOL://$HOST:$PORT/?database=$DATABASE&query=SELECT+*+FROM+$TABLE+FORMAT+SQLInsert"
-
     echo -e "$(date '+%Y-%m-%d %H:%M:%S') Выполняется бэкап таблицы '$TABLE' из базы '$DATABASE'..."
     curl -sS $CURL_OPTS "$QUERY_URL" > "$BACKUP_FILE"
     if [ $? -ne 0 ]; then
@@ -312,6 +335,21 @@ fi
 # Удаление временной директории
 rm -rf "$TEMP_BACKUP_DIR"
 
+# Загрузка в S3
+if [[ "$UPLOAD_TO_S3" == "yes" ]]; then
+    echo -e "${YELLOW}Загрузка бэкапов в S3...${NC}"
+    for FILE in "${BACKUP_FILES[@]}"; do
+        S3_URI="s3://$S3_BUCKET/${S3_PATH:+$S3_PATH/}$(basename "$FILE")"
+        echo -e "$(date '+%Y-%m-%d %H:%M:%S') Загрузка файла $FILE в $S3_URI"
+        aws s3 cp "$FILE" "$S3_URI"
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}Ошибка при загрузке файла $FILE в S3.${NC}"
+        else
+            echo -e "${GREEN}Файл $FILE успешно загружен в S3: $S3_URI${NC}"
+        fi
+    done
+fi
+
 # Конец отсчета времени выполнения
 END_TIME=$(date +%s)
 EXECUTION_TIME=$((END_TIME - START_TIME))
@@ -348,5 +386,4 @@ echo -e "Общий объём бэкапа: ${BACKUP_SIZE}"
 echo -e "Размер файла лога: ${LOG_FILE_SIZE}"
 echo -e "Файл логов: $(pwd)/${LOG_FILE}"
 echo -e "Время выполнения скрипта: ${EXECUTION_TIME} секунд"
-
 print_header "Завершение работы скрипта"
